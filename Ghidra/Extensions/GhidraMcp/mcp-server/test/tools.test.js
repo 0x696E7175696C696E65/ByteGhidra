@@ -9,6 +9,11 @@ test("tool definitions expose action-first Ghidra operations", () => {
   assert.ok(names.includes("decompile_function"));
   assert.ok(names.includes("set_pre_comment"));
   assert.ok(names.includes("goto_address"));
+  assert.ok(names.includes("run_triage"));
+  assert.ok(names.includes("explain_with_evidence"));
+  assert.ok(names.includes("semantic_function_search"));
+  assert.ok(names.includes("draft_yara_rule"));
+  assert.ok(names.includes("import_sandbox_evidence"));
 });
 
 test("tool definitions use bounded object schemas", () => {

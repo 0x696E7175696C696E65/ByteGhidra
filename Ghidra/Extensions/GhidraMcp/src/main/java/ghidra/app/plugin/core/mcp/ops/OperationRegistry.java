@@ -37,6 +37,7 @@ public class OperationRegistry {
 			MutationOps.register(this);
 			NavigationOps.register(this);
 			ScriptOps.register(this);
+			AiAnalysisOps.register(this);
 		}
 	}
 

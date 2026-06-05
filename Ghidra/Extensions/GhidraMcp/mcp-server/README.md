@@ -34,3 +34,36 @@ npm run build
 ## Safety Model
 
 The bridge binds to `127.0.0.1` and requires the per-session token on each call. Read-only tools and UI navigation are available by default. Annotation tools such as comments, bookmarks, and renames require enabling `Tools -> Ghidra MCP -> Allow Annotation Writes` in Ghidra and confirming each write. Analysis tools require the separate analysis-write toggle. The wrapper rejects non-loopback `GHIDRA_MCP_URL` values by default. The first version does not expose arbitrary script execution, process launch, file deletion, or unrestricted project mutation.
+
+## AI Suite Tools
+
+The wrapper also exposes the AI malware-analysis suite:
+
+- Task and session tools: `create_agent_task`, `list_agent_tasks`, `approve_agent_task`, `cancel_agent_task`, `list_session_events`
+- Evidence and triage tools: `run_triage`, `list_evidence`, `get_evidence`, `explain_with_evidence`
+- Hypothesis tools: `create_hypothesis`, `link_evidence`, `set_hypothesis_status`, `list_hypotheses`
+- Program understanding tools: `semantic_function_search`, `find_suspicious_control_flow`
+- Draft generation tools: `draft_yara_rule`, `draft_config_extractor`, `suggest_type_recovery`
+- Sandbox import tools: `import_sandbox_evidence`, `map_runtime_event_to_function`
+
+`run_triage`, task changes, hypothesis changes, and sandbox imports mutate only the suite's in-memory analysis state, but they still use the bridge's analysis-write policy gate. Draft generation tools return preview artifacts; they do not write files or apply types automatically.
+
+Example tool arguments:
+
+```json
+{ "title": "Find config parser", "prompt": "Locate functions that parse network or persistence config." }
+```
+
+```json
+{ "query": "network connect http beacon", "limit": 10 }
+```
+
+```json
+{ "familyName": "suspect_loader" }
+```
+
+```json
+{ "path": "C:/analysis/sample-sandbox-events.json" }
+```
+
+Run `run_triage` before `draft_yara_rule` or `draft_config_extractor` so the evidence store has useful strings and indicators to work from.

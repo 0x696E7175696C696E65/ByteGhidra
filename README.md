@@ -35,6 +35,7 @@ Byte Ghidra keeps the upstream Ghidra foundation and layers on tooling for faste
 | Crackme/auth-check discovery in CodeBrowser | Implemented | `Ghidra/Features/Base/src/main/java/ghidra/app/plugin/core/codebrowser/` |
 | Static game-logic and data-structure discovery in CodeBrowser | Implemented | `Ghidra/Features/Base/src/main/java/ghidra/app/plugin/core/codebrowser/` |
 | Safe local MCP bridge for agent workflows | Implemented | `Ghidra/Extensions/GhidraMcp/` |
+| AI malware-analysis suite for evidence-backed agent workflows | Implemented | `Ghidra/Extensions/GhidraMcp/src/main/java/ghidra/app/plugin/core/mcp/` |
 | Default-on enhanced pseudocode quality | Implemented | `Ghidra/Features/Decompiler/` |
 | Flat Dark default theme and richer default tool UX | Implemented | `Ghidra/Framework/Gui/`, `Ghidra/Configurations/Public_Release/` |
 | Rust backend-first reverse-engineering prototype | Implemented | `re-platform/` |
@@ -209,6 +210,7 @@ Token-authenticated operations include:
 - Annotation writes: rename symbols, set comments, add bookmarks, set signatures
 - Analysis writes: analyze pending changes or rerun analysis
 - Script tools: `list_ghidra_scripts` and `run_ghidra_script`
+- AI suite tools for tasks, triage, evidence, hypotheses, semantic search, draft generation, and sandbox evidence import
 
 The bridge remains local-only:
 
@@ -229,6 +231,42 @@ flowchart TD
     write --> execute
     script --> execute
 ```
+
+### AI Malware Analysis Suite
+
+`GhidraMcp` also includes an AI-assisted malware-analysis workspace built on the same local bridge and policy model. Enable the `AI malware analysis suite` plugin to open dockable panels for:
+
+- Agent task queue
+- Evidence table
+- Session timeline
+- Malware triage dashboard
+- Hypothesis tracker
+- Explain With Evidence
+- Semantic function search
+- Decompiler diff notes
+- Suspicious control-flow candidates
+- YARA rule drafts
+- Config extractor drafts
+- Type-recovery suggestions
+- Sandbox evidence import
+
+The suite stores shared in-memory analysis state through `AiAnalysisService`, so UI actions and MCP tools see the same evidence records, tasks, hypotheses, and timeline events.
+
+```text
+AI Analysis -> Queue Triage Task
+AI Analysis -> Run Triage
+```
+
+MCP tools added for the suite include:
+
+- `create_agent_task`, `list_agent_tasks`, `approve_agent_task`, `cancel_agent_task`
+- `run_triage`, `list_evidence`, `get_evidence`, `explain_with_evidence`
+- `create_hypothesis`, `link_evidence`, `set_hypothesis_status`, `list_hypotheses`
+- `semantic_function_search`, `find_suspicious_control_flow`
+- `draft_yara_rule`, `draft_config_extractor`, `suggest_type_recovery`
+- `import_sandbox_evidence`, `map_runtime_event_to_function`
+
+Generated YARA rules, config extractors, and type-recovery output are preview-only drafts. Sandbox integration imports JSON or CSV traces from local files first; live debugger or sandbox streaming is intentionally deferred.
 
 ## Feature 4: Default-On Pseudocode Quality
 

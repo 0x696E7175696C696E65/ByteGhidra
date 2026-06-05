@@ -48,6 +48,15 @@ const limitOnly = {
   additionalProperties: false,
 };
 
+const idArg = {
+  type: "object",
+  properties: {
+    id: { type: "string" },
+  },
+  required: ["id"],
+  additionalProperties: false,
+};
+
 export const tools: McpTool[] = [
   { name: "get_current_program", description: "Get active Ghidra program metadata", inputSchema: noArgs },
   { name: "get_current_location", description: "Get current cursor location", inputSchema: noArgs },
@@ -239,6 +248,146 @@ export const tools: McpTool[] = [
       required: ["start", "end"],
       additionalProperties: false,
     },
+  },
+  { name: "ai_status", description: "Get AI analysis suite state counts", inputSchema: noArgs },
+  {
+    name: "create_agent_task",
+    description: "Queue an AI-assisted analysis task inside Ghidra",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        prompt: { type: "string" },
+      },
+      required: ["title"],
+      additionalProperties: false,
+    },
+  },
+  { name: "list_agent_tasks", description: "List AI agent tasks", inputSchema: noArgs },
+  { name: "approve_agent_task", description: "Approve a queued AI agent task", inputSchema: idArg },
+  { name: "cancel_agent_task", description: "Cancel an AI agent task", inputSchema: idArg },
+  { name: "run_triage", description: "Run evidence-backed malware triage for the active program", inputSchema: noArgs },
+  { name: "list_evidence", description: "List AI analysis evidence records", inputSchema: noArgs },
+  { name: "get_evidence", description: "Get one evidence record by id", inputSchema: idArg },
+  {
+    name: "explain_with_evidence",
+    description: "Explain a specific evidence record or top evidence records with citations",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        limit: { type: "integer", minimum: 1, maximum: 25 },
+      },
+      additionalProperties: false,
+    },
+  },
+  { name: "list_session_events", description: "List AI analysis session timeline events", inputSchema: noArgs },
+  {
+    name: "create_hypothesis",
+    description: "Create an analyst hypothesis in the AI suite",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text: { type: "string" },
+      },
+      required: ["text"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "link_evidence",
+    description: "Link evidence to an analyst hypothesis",
+    inputSchema: {
+      type: "object",
+      properties: {
+        hypothesisId: { type: "string" },
+        evidenceId: { type: "string" },
+      },
+      required: ["hypothesisId", "evidenceId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "set_hypothesis_status",
+    description: "Set hypothesis status to open, supported, rejected, or needs_review",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        status: { type: "string", enum: ["open", "supported", "rejected", "needs_review"] },
+      },
+      required: ["id", "status"],
+      additionalProperties: false,
+    },
+  },
+  { name: "list_hypotheses", description: "List analyst hypotheses", inputSchema: noArgs },
+  {
+    name: "semantic_function_search",
+    description: "Search functions with deterministic local semantic features",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string" },
+        limit: { type: "integer", minimum: 1, maximum: 100 },
+      },
+      required: ["query"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "find_suspicious_control_flow",
+    description: "Find functions with suspicious branch density or flattened-looking control flow",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 200 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "draft_yara_rule",
+    description: "Draft a YARA rule from collected evidence without applying or saving it",
+    inputSchema: {
+      type: "object",
+      properties: {
+        familyName: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "draft_config_extractor",
+    description: "Draft a reproducible config extractor spec from collected evidence",
+    inputSchema: noArgs,
+  },
+  {
+    name: "suggest_type_recovery",
+    description: "Suggest preview-only type recovery candidates for the active program",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 200 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "import_sandbox_evidence",
+    description: "Import file-based sandbox evidence from a local JSON or CSV file",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: { type: "string" },
+      },
+      required: ["path"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "map_runtime_event_to_function",
+    description: "Map a runtime event address back to its containing Ghidra function",
+    inputSchema: addressArg,
   },
   { name: "analyze_changes", description: "Run Ghidra analysis on pending changes", inputSchema: noArgs },
   { name: "analyze_all", description: "Re-run full Ghidra analysis", inputSchema: noArgs },

@@ -37,7 +37,7 @@ public class GhidraMcpPolicy {
 	}
 
 	public static GhidraMcpPolicy defaults() {
-		return tokenTrusted();
+		return new GhidraMcpPolicy(true, true, false, false, false, false);
 	}
 
 	public static GhidraMcpPolicy tokenTrusted() {
