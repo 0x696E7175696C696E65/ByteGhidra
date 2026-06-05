@@ -1,0 +1,19 @@
+{
+  "name": "ghidra-mcp",
+  "version": "0.1.0",
+  "description": "stdio MCP wrapper for the Ghidra MCP bridge extension",
+  "type": "commonjs",
+  "bin": {
+    "ghidra-mcp": "dist/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "npm exec --package=typescript -- tsc",
+    "test": "npm run build && node --test test/*.test.js"
+  },
+  "devDependencies": {
+    "typescript": "latest"
+  }
+}

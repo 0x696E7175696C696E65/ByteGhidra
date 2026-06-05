@@ -1,0 +1,67 @@
+/* ###
+ * IP: GHIDRA
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+apply from: "$rootProject.projectDir/gradle/distributableGhidraExtension.gradle"
+apply from: "$rootProject.projectDir/gradle/javaProject.gradle"
+apply from: "$rootProject.projectDir/gradle/javaTestProject.gradle"
+apply plugin: 'eclipse'
+eclipse.project.name = 'Xtra GhidraMcp'
+
+import org.gradle.internal.os.OperatingSystem
+
+def mcpServerDir = file("mcp-server")
+def npmCommand = OperatingSystem.current().isWindows() ? "npm.cmd" : "npm"
+
+tasks.register("installMcpServerDependencies", Exec) {
+	group = "private"
+	description = "Installs dependencies for the Ghidra MCP stdio wrapper."
+	workingDir mcpServerDir
+	commandLine npmCommand, "install"
+	inputs.file file("mcp-server/package-lock.json")
+	outputs.dir file("mcp-server/node_modules")
+}
+
+tasks.register("buildMcpServer", Exec) {
+	group = "private"
+	description = "Builds the Ghidra MCP stdio wrapper."
+	dependsOn "installMcpServerDependencies"
+	workingDir mcpServerDir
+	commandLine npmCommand, "run", "build"
+	inputs.dir file("mcp-server/src")
+	inputs.file file("mcp-server/tsconfig.json")
+	outputs.dir file("mcp-server/dist")
+}
+
+zipExtensions {
+	dependsOn "buildMcpServer"
+	exclude "mcp-server/node_modules/**"
+	exclude "mcp-server/src/**"
+}
+
+// The stock distributable extension path places an installable archive under Extensions/Ghidra.
+// Byte Ghidra wants MCP visible on first launch, so also unpack it as an installed extension.
+rootProject.createInstallationZip {
+	dependsOn tasks.named("zipExtensions")
+	from({ zipTree(tasks.named("zipExtensions").get().archiveFile.get().asFile) }) {
+		into {
+			rootProject.ext.ZIP_DIR_PREFIX + "/Ghidra/Extensions"
+		}
+	}
+}
+
+dependencies {
+	api project(':Base')
+	api project(':Decompiler')
+}

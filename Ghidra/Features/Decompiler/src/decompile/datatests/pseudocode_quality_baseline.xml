@@ -1,0 +1,24 @@
+<decompilertest>
+<binaryimage arch="x86:LE:64:default:gcc">
+<!--
+  Baseline guard for the default-on pseudocode quality mode. This keeps the
+  harness focused on readable C shape while deeper quality rules are added.
+-->
+<bytechunk space="ram" offset="0x400517" readonly="true">
+              554889e5534883ec18
+897decbb00000000eb0dbf20084000e8
+fcfeffff83c3013b5dec7cee904883c4
+185b5dc3
+</bytechunk>
+<symbol space="ram" offset="0x400517" name="quality_forloop"/>
+</binaryimage>
+<script>
+  <com>lo fu quality_forloop</com>
+  <com>parse line extern void quality_forloop(int4 max);</com>
+  <com>decompile</com>
+  <com>print C</com>
+  <com>quit</com>
+</script>
+<stringmatch name="Quality mode defaults to structured loop" min="1" max="1">for.*iVar1 = 0; iVar1 &lt; max; iVar1 = iVar1 \+ 1</stringmatch>
+<stringmatch name="Quality mode avoids goto for structured loop" min="0" max="0">goto</stringmatch>
+</decompilertest>

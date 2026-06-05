@@ -1,0 +1,14 @@
+[package]
+name = "re-platform"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "re_platform"
+path = "src/lib.rs"
+
+[[bin]]
+name = "re-platform-cli"
+path = "src/re_platform_cli.rs"
+
+[dependencies]
