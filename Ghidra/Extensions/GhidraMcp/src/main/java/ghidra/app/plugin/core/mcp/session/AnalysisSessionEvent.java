@@ -22,6 +22,13 @@ public class AnalysisSessionEvent {
 		this.timestamp = Instant.now();
 	}
 
+	private AnalysisSessionEvent(String type, String summary, String details, Instant timestamp) {
+		this.type = type;
+		this.summary = summary;
+		this.details = details == null ? "" : details;
+		this.timestamp = timestamp;
+	}
+
 	public String type() {
 		return type;
 	}
@@ -41,5 +48,14 @@ public class AnalysisSessionEvent {
 		object.addProperty("details", details);
 		object.addProperty("timestamp", timestamp.toString());
 		return object;
+	}
+
+	public static AnalysisSessionEvent fromJson(JsonObject object) {
+		return new AnalysisSessionEvent(get(object, "type"), get(object, "summary"), get(object, "details"),
+			object.has("timestamp") ? Instant.parse(object.get("timestamp").getAsString()) : Instant.now());
+	}
+
+	private static String get(JsonObject object, String name) {
+		return object.has(name) && !object.get(name).isJsonNull() ? object.get(name).getAsString() : "";
 	}
 }

@@ -8,10 +8,12 @@ declare const process: {
 
 import { BridgeClient } from "./bridgeClient";
 import { tools } from "./tools";
+import { validateToolArguments } from "./validator";
 
 const readline = require("node:readline");
 const bridge = new BridgeClient();
 const toolNames = new Set(tools.map(tool => tool.name));
+const toolByName = new Map(tools.map(tool => [tool.name, tool]));
 
 interface JsonRpcRequest {
   jsonrpc?: string;
@@ -71,7 +73,13 @@ async function handle(request: JsonRpcRequest): Promise<void> {
         error(request.id, -32602, "tools/call params.arguments must be an object");
         return;
       }
-      const response = await bridge.call(name, args);
+      const tool = toolByName.get(name);
+      const validationErrors = tool ? validateToolArguments(tool, args) : [];
+      if (validationErrors.length > 0) {
+        error(request.id, -32602, `Invalid arguments for ${name}: ${validationErrors.join("; ")}`);
+        return;
+      }
+      const response = name === "get_mcp_status" ? await bridge.status() : await bridge.call(name, args);
       if (!response.success) {
         result(request.id, {
           isError: true,

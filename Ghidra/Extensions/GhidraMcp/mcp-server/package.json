@@ -10,10 +10,10 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "npm exec --package=typescript -- tsc",
+    "build": "tsc",
     "test": "npm run build && node --test test/*.test.js"
   },
   "devDependencies": {
-    "typescript": "latest"
+    "typescript": "6.0.3"
   }
 }

@@ -20,18 +20,29 @@ import ghidra.app.plugin.core.mcp.ops.GhidraMcpOperation.OperationKind;
 public class GhidraMcpPolicy {
 	private final boolean allowReadOnly;
 	private final boolean allowUiOnly;
+	private final boolean allowSuiteStateWrites;
 	private final boolean allowAnnotationWrites;
 	private final boolean allowAnalysisWrites;
+	private final boolean allowScripts;
 	private final boolean allowDangerous;
 	private final boolean allowRemoteBind;
 
 	public GhidraMcpPolicy(boolean allowReadOnly, boolean allowUiOnly,
 			boolean allowAnnotationWrites, boolean allowAnalysisWrites, boolean allowDangerous,
 			boolean allowRemoteBind) {
+		this(allowReadOnly, allowUiOnly, false, allowAnnotationWrites, allowAnalysisWrites, false,
+			allowDangerous, allowRemoteBind);
+	}
+
+	public GhidraMcpPolicy(boolean allowReadOnly, boolean allowUiOnly,
+			boolean allowSuiteStateWrites, boolean allowAnnotationWrites, boolean allowAnalysisWrites,
+			boolean allowScripts, boolean allowDangerous, boolean allowRemoteBind) {
 		this.allowReadOnly = allowReadOnly;
 		this.allowUiOnly = allowUiOnly;
+		this.allowSuiteStateWrites = allowSuiteStateWrites;
 		this.allowAnnotationWrites = allowAnnotationWrites;
 		this.allowAnalysisWrites = allowAnalysisWrites;
+		this.allowScripts = allowScripts;
 		this.allowDangerous = allowDangerous;
 		this.allowRemoteBind = allowRemoteBind;
 	}
@@ -41,27 +52,37 @@ public class GhidraMcpPolicy {
 	}
 
 	public static GhidraMcpPolicy tokenTrusted() {
-		return new GhidraMcpPolicy(true, true, true, true, true, false);
+		return new GhidraMcpPolicy(true, true, true, true, true, true, true, false);
+	}
+
+	public static GhidraMcpPolicy allowSuiteStateWrites() {
+		return new GhidraMcpPolicy(true, true, true, false, false, false, false, false);
 	}
 
 	public static GhidraMcpPolicy allowAnnotations() {
-		return new GhidraMcpPolicy(true, true, true, false, false, false);
+		return new GhidraMcpPolicy(true, true, false, true, false, false, false, false);
 	}
 
 	public static GhidraMcpPolicy allowAnalysis() {
-		return new GhidraMcpPolicy(true, true, false, true, false, false);
+		return new GhidraMcpPolicy(true, true, false, false, true, false, false, false);
+	}
+
+	public static GhidraMcpPolicy allowScripts() {
+		return new GhidraMcpPolicy(true, true, false, false, false, true, false, false);
 	}
 
 	public static GhidraMcpPolicy allowAnnotationsAndAnalysis() {
-		return new GhidraMcpPolicy(true, true, true, true, false, false);
+		return new GhidraMcpPolicy(true, true, false, true, true, false, false, false);
 	}
 
 	public boolean isAllowed(OperationKind kind) {
 		return switch (kind) {
 			case READ_ONLY -> allowReadOnly;
 			case UI_ONLY -> allowUiOnly;
+			case SUITE_STATE_WRITE -> allowSuiteStateWrites;
 			case ANNOTATION_WRITE -> allowAnnotationWrites;
 			case ANALYSIS_WRITE -> allowAnalysisWrites;
+			case SCRIPT_EXECUTION -> allowScripts;
 			case DANGEROUS -> allowDangerous;
 		};
 	}
@@ -70,12 +91,20 @@ public class GhidraMcpPolicy {
 		return allowRemoteBind;
 	}
 
+	public boolean allowsSuiteStateWrites() {
+		return allowSuiteStateWrites;
+	}
+
 	public boolean allowsAnnotationWrites() {
 		return allowAnnotationWrites;
 	}
 
 	public boolean allowsAnalysisWrites() {
 		return allowAnalysisWrites;
+	}
+
+	public boolean allowsScripts() {
+		return allowScripts;
 	}
 
 	public boolean allowsDangerousOperations() {

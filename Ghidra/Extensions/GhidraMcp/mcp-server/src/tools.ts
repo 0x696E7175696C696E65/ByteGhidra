@@ -57,7 +57,31 @@ const idArg = {
   additionalProperties: false,
 };
 
+const evidenceList = {
+  type: "object",
+  properties: {
+    limit: { type: "integer", minimum: 1, maximum: 1000 },
+    offset: { type: "integer", minimum: 0 },
+    category: { type: "string" },
+    severity: { type: "string" },
+    source: { type: "string" },
+    function: { type: "string" },
+  },
+  additionalProperties: false,
+};
+
+const statusList = {
+  type: "object",
+  properties: {
+    limit: { type: "integer", minimum: 1, maximum: 1000 },
+    offset: { type: "integer", minimum: 0 },
+    status: { type: "string" },
+  },
+  additionalProperties: false,
+};
+
 export const tools: McpTool[] = [
+  { name: "get_mcp_status", description: "Get bridge status, active program, policy toggles, and exposed operations", inputSchema: noArgs },
   { name: "get_current_program", description: "Get active Ghidra program metadata", inputSchema: noArgs },
   { name: "get_current_location", description: "Get current cursor location", inputSchema: noArgs },
   { name: "get_current_selection", description: "Get current selection and highlight ranges", inputSchema: noArgs },
@@ -201,7 +225,7 @@ export const tools: McpTool[] = [
   { name: "goto_address", description: "Navigate the Ghidra UI to an address", inputSchema: addressArg },
   {
     name: "list_ghidra_scripts",
-    description: "List Java/Python Ghidra scripts available to the current Ghidra session",
+    description: "List Java/Python Ghidra scripts; requires the script-execution policy toggle",
     inputSchema: {
       type: "object",
       properties: {
@@ -214,7 +238,7 @@ export const tools: McpTool[] = [
   {
     name: "run_ghidra_script",
     description:
-      "Run a Ghidra script with full current tool/program state. Supports Java scripts and Python/PyGhidra scripts when PyGhidra is active.",
+      "Run a policy-gated Ghidra script with full current tool/program state. Supports Java scripts and Python/PyGhidra scripts when PyGhidra is active.",
     inputSchema: {
       type: "object",
       properties: {
@@ -252,7 +276,7 @@ export const tools: McpTool[] = [
   { name: "ai_status", description: "Get AI analysis suite state counts", inputSchema: noArgs },
   {
     name: "create_agent_task",
-    description: "Queue an AI-assisted analysis task inside Ghidra",
+    description: "Queue an AI-assisted analysis task inside Ghidra; requires the AI-suite state-write policy toggle",
     inputSchema: {
       type: "object",
       properties: {
@@ -263,11 +287,12 @@ export const tools: McpTool[] = [
       additionalProperties: false,
     },
   },
-  { name: "list_agent_tasks", description: "List AI agent tasks", inputSchema: noArgs },
-  { name: "approve_agent_task", description: "Approve a queued AI agent task", inputSchema: idArg },
-  { name: "cancel_agent_task", description: "Cancel an AI agent task", inputSchema: idArg },
-  { name: "run_triage", description: "Run evidence-backed malware triage for the active program", inputSchema: noArgs },
-  { name: "list_evidence", description: "List AI analysis evidence records", inputSchema: noArgs },
+  { name: "list_agent_tasks", description: "List AI agent tasks", inputSchema: statusList },
+  { name: "approve_agent_task", description: "Approve a queued AI agent task; requires AI-suite state-write policy", inputSchema: idArg },
+  { name: "cancel_agent_task", description: "Cancel an AI agent task; requires AI-suite state-write policy", inputSchema: idArg },
+  { name: "run_triage", description: "Run evidence-backed malware triage for the active program; requires AI-suite state-write policy", inputSchema: noArgs },
+  { name: "start_triage_task", description: "Start evidence-backed malware triage as a background AI task; requires AI-suite state-write policy", inputSchema: noArgs },
+  { name: "list_evidence", description: "List AI analysis evidence records", inputSchema: evidenceList },
   { name: "get_evidence", description: "Get one evidence record by id", inputSchema: idArg },
   {
     name: "explain_with_evidence",
@@ -281,10 +306,23 @@ export const tools: McpTool[] = [
       additionalProperties: false,
     },
   },
-  { name: "list_session_events", description: "List AI analysis session timeline events", inputSchema: noArgs },
+  { name: "list_session_events", description: "List AI analysis session timeline events", inputSchema: paginatedList },
+  { name: "export_ai_session", description: "Export the active AI analysis session as JSON", inputSchema: noArgs },
+  {
+    name: "import_ai_session",
+    description: "Import an AI analysis session JSON object; requires AI-suite state-write policy",
+    inputSchema: {
+      type: "object",
+      properties: {
+        session: { type: "object", description: "Session JSON returned by export_ai_session" },
+      },
+      required: ["session"],
+      additionalProperties: false,
+    },
+  },
   {
     name: "create_hypothesis",
-    description: "Create an analyst hypothesis in the AI suite",
+    description: "Create an analyst hypothesis in the AI suite; requires AI-suite state-write policy",
     inputSchema: {
       type: "object",
       properties: {
@@ -296,7 +334,7 @@ export const tools: McpTool[] = [
   },
   {
     name: "link_evidence",
-    description: "Link evidence to an analyst hypothesis",
+    description: "Link evidence to an analyst hypothesis; requires AI-suite state-write policy",
     inputSchema: {
       type: "object",
       properties: {
@@ -309,7 +347,7 @@ export const tools: McpTool[] = [
   },
   {
     name: "set_hypothesis_status",
-    description: "Set hypothesis status to open, supported, rejected, or needs_review",
+    description: "Set hypothesis status to open, supported, rejected, or needs_review; requires AI-suite state-write policy",
     inputSchema: {
       type: "object",
       properties: {
@@ -320,7 +358,7 @@ export const tools: McpTool[] = [
       additionalProperties: false,
     },
   },
-  { name: "list_hypotheses", description: "List analyst hypotheses", inputSchema: noArgs },
+  { name: "list_hypotheses", description: "List analyst hypotheses", inputSchema: statusList },
   {
     name: "semantic_function_search",
     description: "Search functions with deterministic local semantic features",
@@ -374,7 +412,7 @@ export const tools: McpTool[] = [
   },
   {
     name: "import_sandbox_evidence",
-    description: "Import file-based sandbox evidence from a local JSON or CSV file",
+    description: "Import file-based sandbox evidence from a local JSON or CSV file; requires AI-suite state-write policy",
     inputSchema: {
       type: "object",
       properties: {
@@ -387,7 +425,21 @@ export const tools: McpTool[] = [
   {
     name: "map_runtime_event_to_function",
     description: "Map a runtime event address back to its containing Ghidra function",
-    inputSchema: addressArg,
+    inputSchema: {
+      type: "object",
+      properties: {
+        address: { type: "string" },
+        rva: { type: "string" },
+        module: { type: "string" },
+        imageBase: { type: "string" },
+        processId: { type: "string" },
+        threadId: { type: "string" },
+        timestamp: { type: "string" },
+        eventType: { type: "string" },
+      },
+      anyOf: [{ required: ["address"] }, { required: ["rva"] }],
+      additionalProperties: false,
+    },
   },
   { name: "analyze_changes", description: "Run Ghidra analysis on pending changes", inputSchema: noArgs },
   { name: "analyze_all", description: "Re-run full Ghidra analysis", inputSchema: noArgs },

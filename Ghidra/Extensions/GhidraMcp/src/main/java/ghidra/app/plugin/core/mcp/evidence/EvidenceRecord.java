@@ -48,6 +48,10 @@ public class EvidenceRecord {
 		return id;
 	}
 
+	public String source() {
+		return source;
+	}
+
 	public String address() {
 		return address;
 	}
@@ -80,6 +84,11 @@ public class EvidenceRecord {
 		return tags;
 	}
 
+	public String dedupeKey() {
+		return String.join("|", nullToEmpty(source), nullToEmpty(category), nullToEmpty(address),
+			nullToEmpty(functionName), nullToEmpty(summary));
+	}
+
 	public JsonObject toJson() {
 		JsonObject object = new JsonObject();
 		object.addProperty("id", id);
@@ -102,5 +111,29 @@ public class EvidenceRecord {
 		}
 		object.add("tags", tagArray);
 		return object;
+	}
+
+	public static EvidenceRecord fromJson(JsonObject object) {
+		List<String> tags = new ArrayList<>();
+		if (object.has("tags") && object.get("tags").isJsonArray()) {
+			for (var element : object.getAsJsonArray("tags")) {
+				tags.add(element.getAsString());
+			}
+		}
+		Instant parsedTimestamp = object.has("timestamp") ? Instant.parse(object.get("timestamp").getAsString())
+				: Instant.now();
+		return new EvidenceRecord(get(object, "id"), get(object, "source"), get(object, "category"),
+			get(object, "severity"), get(object, "address"), get(object, "function"),
+			get(object, "summary"), get(object, "details"),
+			object.has("confidence") ? object.get("confidence").getAsDouble() : 0, tags,
+			parsedTimestamp);
+	}
+
+	private static String get(JsonObject object, String name) {
+		return object.has(name) && !object.get(name).isJsonNull() ? object.get(name).getAsString() : null;
+	}
+
+	private String nullToEmpty(String value) {
+		return value == null ? "" : value;
 	}
 }

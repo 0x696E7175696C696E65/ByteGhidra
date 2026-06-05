@@ -76,6 +76,44 @@ export class BridgeClient {
     }
   }
 
+  async status(): Promise<BridgeResponse> {
+    const urlCheck = this.validateLoopbackUrl();
+    if (urlCheck) {
+      return urlCheck;
+    }
+    if (!this.token) {
+      return {
+        success: false,
+        error: {
+          code: "missing_token",
+          message: "Set GHIDRA_MCP_TOKEN to the token copied from the Ghidra MCP plugin",
+        },
+      };
+    }
+    try {
+      const response = await fetch(`${this.baseUrl}/status`, {
+        method: "GET",
+        headers: { "X-Ghidra-MCP-Token": this.token },
+      });
+      if (!response.ok) {
+        return {
+          success: false,
+          error: { code: `http_${response.status}`, message: await response.text() },
+        };
+      }
+      return { success: true, result: await response.json() };
+    }
+    catch (e) {
+      return {
+        success: false,
+        error: {
+          code: "bridge_unreachable",
+          message: e instanceof Error ? e.message : String(e),
+        },
+      };
+    }
+  }
+
   private validateLoopbackUrl(): BridgeResponse | null {
     let parsed: URL;
     try {

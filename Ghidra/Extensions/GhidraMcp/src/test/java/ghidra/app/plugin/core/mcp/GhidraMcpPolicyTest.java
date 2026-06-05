@@ -37,8 +37,10 @@ public class GhidraMcpPolicyTest extends AbstractGenericTest {
 	public void testDefaultPolicyDeniesMutatingAndDangerousOperations() {
 		GhidraMcpPolicy policy = GhidraMcpPolicy.defaults();
 
+		assertFalse(policy.isAllowed(OperationKind.SUITE_STATE_WRITE));
 		assertFalse(policy.isAllowed(OperationKind.ANNOTATION_WRITE));
 		assertFalse(policy.isAllowed(OperationKind.ANALYSIS_WRITE));
+		assertFalse(policy.isAllowed(OperationKind.SCRIPT_EXECUTION));
 		assertFalse(policy.isAllowed(OperationKind.DANGEROUS));
 	}
 
@@ -48,7 +50,23 @@ public class GhidraMcpPolicyTest extends AbstractGenericTest {
 			new GhidraMcpPolicy(true, true, true, false, false, false);
 
 		assertTrue(policy.isAllowed(OperationKind.ANNOTATION_WRITE));
+		assertFalse(policy.isAllowed(OperationKind.SUITE_STATE_WRITE));
 		assertFalse(policy.isAllowed(OperationKind.ANALYSIS_WRITE));
+		assertFalse(policy.isAllowed(OperationKind.SCRIPT_EXECUTION));
 		assertFalse(policy.isAllowed(OperationKind.DANGEROUS));
+	}
+
+	@Test
+	public void testSuiteStateAndScriptPoliciesAreIndependent() {
+		GhidraMcpPolicy suiteOnly = GhidraMcpPolicy.allowSuiteStateWrites();
+		GhidraMcpPolicy scriptsOnly = GhidraMcpPolicy.allowScripts();
+
+		assertTrue(suiteOnly.isAllowed(OperationKind.SUITE_STATE_WRITE));
+		assertFalse(suiteOnly.isAllowed(OperationKind.ANALYSIS_WRITE));
+		assertFalse(suiteOnly.isAllowed(OperationKind.SCRIPT_EXECUTION));
+
+		assertTrue(scriptsOnly.isAllowed(OperationKind.SCRIPT_EXECUTION));
+		assertFalse(scriptsOnly.isAllowed(OperationKind.SUITE_STATE_WRITE));
+		assertFalse(scriptsOnly.isAllowed(OperationKind.DANGEROUS));
 	}
 }

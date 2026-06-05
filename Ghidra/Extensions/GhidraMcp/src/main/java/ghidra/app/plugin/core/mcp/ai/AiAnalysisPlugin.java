@@ -42,6 +42,7 @@ import ghidra.util.task.TaskMonitor;
 //@formatter:on
 public class AiAnalysisPlugin extends ProgramPlugin {
 	private final AiAnalysisService service = AiAnalysisService.shared();
+	private final AiAnalysisProvider workspaceProvider;
 	private final AgentTaskProvider taskProvider;
 	private final EvidenceProvider evidenceProvider;
 	private final AnalysisTimelineProvider timelineProvider;
@@ -58,6 +59,7 @@ public class AiAnalysisPlugin extends ProgramPlugin {
 
 	public AiAnalysisPlugin(PluginTool tool) {
 		super(tool);
+		workspaceProvider = new AiAnalysisProvider(tool, service);
 		taskProvider = new AgentTaskProvider(tool, service.tasks());
 		evidenceProvider = new EvidenceProvider(tool, service.evidence());
 		timelineProvider = new AnalysisTimelineProvider(tool, service.session());
@@ -114,6 +116,8 @@ public class AiAnalysisPlugin extends ProgramPlugin {
 
 	@Override
 	protected void programActivated(Program program) {
+		service.activateProgram(program);
+		workspaceProvider.setProgram(program);
 		searchProvider.setProgram(program);
 		controlFlowProvider.setProgram(program);
 		typeRecoveryProvider.setProgram(program);
@@ -122,6 +126,7 @@ public class AiAnalysisPlugin extends ProgramPlugin {
 
 	@Override
 	protected void dispose() {
+		workspaceProvider.dispose();
 		taskProvider.dispose();
 		evidenceProvider.dispose();
 		timelineProvider.dispose();

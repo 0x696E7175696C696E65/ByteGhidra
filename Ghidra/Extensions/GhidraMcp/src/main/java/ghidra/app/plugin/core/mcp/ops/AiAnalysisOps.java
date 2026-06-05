@@ -7,7 +7,7 @@ package ghidra.app.plugin.core.mcp.ops;
 
 import java.nio.file.Path;
 
-import com.google.gson.JsonObject;
+import com.google.gson.*;
 
 import ghidra.app.plugin.core.mcp.ai.AiAnalysisService;
 import ghidra.app.plugin.core.mcp.bridge.GhidraMcpResponse;
@@ -31,32 +31,41 @@ final class AiAnalysisOps {
 	static void register(OperationRegistry registry) {
 		registry.register(op("ai_status", GhidraMcpOperation.OperationKind.READ_ONLY,
 			(context, params) -> GhidraMcpResponse.ok(service().status())));
-		registry.register(op("create_agent_task", GhidraMcpOperation.OperationKind.ANALYSIS_WRITE,
+		registry.register(op("create_agent_task", GhidraMcpOperation.OperationKind.SUITE_STATE_WRITE,
 			AiAnalysisOps::createTask));
 		registry.register(op("list_agent_tasks", GhidraMcpOperation.OperationKind.READ_ONLY,
-			(context, params) -> GhidraMcpResponse.ok(service().tasks().toJsonArray())));
-		registry.register(op("approve_agent_task", GhidraMcpOperation.OperationKind.ANALYSIS_WRITE,
+			(context, params) -> GhidraMcpResponse.ok(paginate(service().tasks().toJsonArray(), params,
+				"status"))));
+		registry.register(op("approve_agent_task", GhidraMcpOperation.OperationKind.SUITE_STATE_WRITE,
 			(context, params) -> setTaskStatus(params, AgentTask.Status.APPROVED)));
-		registry.register(op("cancel_agent_task", GhidraMcpOperation.OperationKind.ANALYSIS_WRITE,
-			(context, params) -> setTaskStatus(params, AgentTask.Status.CANCELLED)));
-		registry.register(op("run_triage", GhidraMcpOperation.OperationKind.ANALYSIS_WRITE,
+		registry.register(op("cancel_agent_task", GhidraMcpOperation.OperationKind.SUITE_STATE_WRITE,
+			AiAnalysisOps::cancelTask));
+		registry.register(op("run_triage", GhidraMcpOperation.OperationKind.SUITE_STATE_WRITE,
 			AiAnalysisOps::runTriage));
+		registry.register(op("start_triage_task", GhidraMcpOperation.OperationKind.SUITE_STATE_WRITE,
+			AiAnalysisOps::startTriageTask));
 		registry.register(op("list_evidence", GhidraMcpOperation.OperationKind.READ_ONLY,
-			(context, params) -> GhidraMcpResponse.ok(service().evidence().toJsonArray())));
+			(context, params) -> GhidraMcpResponse.ok(paginate(service().evidence().toJsonArray(), params,
+				"category", "severity", "source", "function"))));
 		registry.register(op("get_evidence", GhidraMcpOperation.OperationKind.READ_ONLY,
 			AiAnalysisOps::getEvidence));
 		registry.register(op("explain_with_evidence", GhidraMcpOperation.OperationKind.READ_ONLY,
 			AiAnalysisOps::explainEvidence));
 		registry.register(op("list_session_events", GhidraMcpOperation.OperationKind.READ_ONLY,
-			(context, params) -> GhidraMcpResponse.ok(service().session().toJsonArray())));
-		registry.register(op("create_hypothesis", GhidraMcpOperation.OperationKind.ANALYSIS_WRITE,
+			(context, params) -> GhidraMcpResponse.ok(paginate(service().session().toJsonArray(), params))));
+		registry.register(op("export_ai_session", GhidraMcpOperation.OperationKind.READ_ONLY,
+			(context, params) -> GhidraMcpResponse.ok(service().exportSession())));
+		registry.register(op("import_ai_session", GhidraMcpOperation.OperationKind.SUITE_STATE_WRITE,
+			AiAnalysisOps::importAiSession));
+		registry.register(op("create_hypothesis", GhidraMcpOperation.OperationKind.SUITE_STATE_WRITE,
 			AiAnalysisOps::createHypothesis));
-		registry.register(op("link_evidence", GhidraMcpOperation.OperationKind.ANALYSIS_WRITE,
+		registry.register(op("link_evidence", GhidraMcpOperation.OperationKind.SUITE_STATE_WRITE,
 			AiAnalysisOps::linkEvidence));
-		registry.register(op("set_hypothesis_status", GhidraMcpOperation.OperationKind.ANALYSIS_WRITE,
+		registry.register(op("set_hypothesis_status", GhidraMcpOperation.OperationKind.SUITE_STATE_WRITE,
 			AiAnalysisOps::setHypothesisStatus));
 		registry.register(op("list_hypotheses", GhidraMcpOperation.OperationKind.READ_ONLY,
-			(context, params) -> GhidraMcpResponse.ok(service().hypotheses().toJsonArray())));
+			(context, params) -> GhidraMcpResponse.ok(paginate(service().hypotheses().toJsonArray(), params,
+				"status"))));
 		registry.register(op("semantic_function_search", GhidraMcpOperation.OperationKind.READ_ONLY,
 			AiAnalysisOps::semanticFunctionSearch));
 		registry.register(op("find_suspicious_control_flow", GhidraMcpOperation.OperationKind.READ_ONLY,
@@ -68,7 +77,7 @@ final class AiAnalysisOps {
 				new ConfigExtractorDraft().draft(service().evidence()))));
 		registry.register(op("suggest_type_recovery", GhidraMcpOperation.OperationKind.READ_ONLY,
 			AiAnalysisOps::suggestTypeRecovery));
-		registry.register(op("import_sandbox_evidence", GhidraMcpOperation.OperationKind.ANALYSIS_WRITE,
+		registry.register(op("import_sandbox_evidence", GhidraMcpOperation.OperationKind.SUITE_STATE_WRITE,
 			AiAnalysisOps::importSandboxEvidence));
 		registry.register(op("map_runtime_event_to_function", GhidraMcpOperation.OperationKind.READ_ONLY,
 			AiAnalysisOps::mapRuntimeEventToFunction));
@@ -94,6 +103,41 @@ final class AiAnalysisOps {
 		};
 	}
 
+	private static JsonObject paginate(JsonArray array, JsonObject params, String... filterFields) {
+		int offset = OperationUtils.intParam(params, "offset", 0, 0, Integer.MAX_VALUE);
+		int limit = OperationUtils.intParam(params, "limit", OperationUtils.DEFAULT_LIMIT, 1,
+			OperationUtils.MAX_LIMIT);
+		JsonArray filtered = new JsonArray();
+		for (JsonElement element : array) {
+			if (element.isJsonObject() && matchesFilters(element.getAsJsonObject(), params, filterFields)) {
+				filtered.add(element);
+			}
+		}
+		JsonArray items = new JsonArray();
+		for (int i = offset; i < filtered.size() && items.size() < limit; i++) {
+			items.add(filtered.get(i));
+		}
+		JsonObject result = new JsonObject();
+		result.add("items", items);
+		result.addProperty("total", filtered.size());
+		result.addProperty("offset", offset);
+		result.addProperty("limit", limit);
+		result.addProperty("truncated", offset + items.size() < filtered.size());
+		return result;
+	}
+
+	private static boolean matchesFilters(JsonObject object, JsonObject params, String... fields) {
+		for (String field : fields) {
+			if (params.has(field) && !params.get(field).isJsonNull()) {
+				if (!object.has(field) ||
+					!object.get(field).getAsString().equalsIgnoreCase(params.get(field).getAsString())) {
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
 	private static GhidraMcpResponse createTask(GhidraMcpContext context, JsonObject params) {
 		String title = OperationUtils.requiredString(params, "title");
 		String prompt = OperationUtils.optionalString(params, "prompt", title);
@@ -112,10 +156,25 @@ final class AiAnalysisOps {
 		return GhidraMcpResponse.ok(task.toJson());
 	}
 
+	private static GhidraMcpResponse cancelTask(GhidraMcpContext context, JsonObject params) {
+		String id = OperationUtils.requiredString(params, "id");
+		AgentTask task = service().tasks().cancel(id);
+		if (task == null) {
+			return GhidraMcpResponse.error("not_found", "Unknown task id: " + id);
+		}
+		service().session().record("task", "Cancellation requested", id);
+		return GhidraMcpResponse.ok(task.toJson());
+	}
+
 	private static GhidraMcpResponse runTriage(GhidraMcpContext context, JsonObject params) {
 		Program program = OperationUtils.requireProgram(context);
 		TriageReport report = service().runTriage(program, context.monitor());
 		return GhidraMcpResponse.ok(report.toJson());
+	}
+
+	private static GhidraMcpResponse startTriageTask(GhidraMcpContext context, JsonObject params) {
+		Program program = OperationUtils.requireProgram(context);
+		return GhidraMcpResponse.ok(service().startTriageTask(program).toJson());
 	}
 
 	private static GhidraMcpResponse getEvidence(GhidraMcpContext context, JsonObject params) {
@@ -142,6 +201,13 @@ final class AiAnalysisOps {
 		Hypothesis hypothesis = service().hypotheses().create(text);
 		service().session().record("hypothesis", "Created hypothesis", text);
 		return GhidraMcpResponse.ok(hypothesis.toJson());
+	}
+
+	private static GhidraMcpResponse importAiSession(GhidraMcpContext context, JsonObject params) {
+		JsonObject session = params.has("session") && params.get("session").isJsonObject()
+				? params.getAsJsonObject("session")
+				: params;
+		return GhidraMcpResponse.ok(service().importSession(session).toJson());
 	}
 
 	private static GhidraMcpResponse linkEvidence(GhidraMcpContext context, JsonObject params) {
@@ -199,10 +265,11 @@ final class AiAnalysisOps {
 			throws Exception {
 		Program program = OperationUtils.requireProgram(context);
 		Path path = Path.of(OperationUtils.requiredString(params, "path"));
-		int count = new SandboxEvidenceImporter().importFile(path, program, service().evidence());
-		service().session().record("sandbox", "Imported sandbox evidence", count + " events");
-		JsonObject object = new JsonObject();
-		object.addProperty("imported", count);
+		SandboxEvidenceImporter.ImportResult result =
+			new SandboxEvidenceImporter().importFile(path, program, service().evidence());
+		service().session().record("sandbox", "Imported sandbox evidence",
+			result.imported() + " imported, " + result.skipped() + " skipped");
+		JsonObject object = result.toJson();
 		object.addProperty("path", path.toString());
 		return GhidraMcpResponse.ok(object);
 	}
@@ -210,8 +277,7 @@ final class AiAnalysisOps {
 	private static GhidraMcpResponse mapRuntimeEventToFunction(GhidraMcpContext context,
 			JsonObject params) {
 		Program program = OperationUtils.requireProgram(context);
-		String address = OperationUtils.requiredString(params, "address");
-		return GhidraMcpResponse.ok(new SandboxEvidenceImporter().mapRuntimeEvent(program, address));
+		return GhidraMcpResponse.ok(new SandboxEvidenceImporter().mapRuntimeEvent(program, params));
 	}
 
 	private static AiAnalysisService service() {

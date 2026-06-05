@@ -15,6 +15,8 @@ public class YaraRuleGenerator {
 		String safeName = sanitize(familyName == null || familyName.isBlank() ? "suspect_sample" : familyName);
 		List<EvidenceRecord> records = store.list();
 		StringBuilder strings = new StringBuilder();
+		Set<String> seenStrings = new LinkedHashSet<>();
+		List<String> evidenceIds = new ArrayList<>();
 		int stringCount = 0;
 		for (EvidenceRecord record : records) {
 			if (!record.tags().contains("string")) {
@@ -22,6 +24,10 @@ public class YaraRuleGenerator {
 			}
 			String value = record.details();
 			if (value == null || value.length() < 6 || value.length() > 160) {
+				continue;
+			}
+			evidenceIds.add(record.id());
+			if (!seenStrings.add(value)) {
 				continue;
 			}
 			strings.append("        $s").append(++stringCount).append(" = \"")
@@ -37,6 +43,7 @@ public class YaraRuleGenerator {
 			"    meta:\n" +
 			"        description = \"Draft rule generated from Ghidra AI evidence\"\n" +
 			"        confidence = \"draft\"\n" +
+			"        evidence = \"" + escape(String.join(", ", evidenceIds)) + "\"\n" +
 			"    strings:\n" +
 			strings +
 			"    condition:\n" +
@@ -53,7 +60,14 @@ public class YaraRuleGenerator {
 	}
 
 	private String sanitize(String value) {
-		return value.replaceAll("[^A-Za-z0-9_]", "_");
+		String sanitized = value.replaceAll("[^A-Za-z0-9_]", "_").replaceAll("_+", "_");
+		if (sanitized.isBlank()) {
+			sanitized = "suspect_sample";
+		}
+		if (!Character.isLetter(sanitized.charAt(0)) && sanitized.charAt(0) != '_') {
+			sanitized = "sample_" + sanitized;
+		}
+		return sanitized;
 	}
 
 	private String escape(String value) {

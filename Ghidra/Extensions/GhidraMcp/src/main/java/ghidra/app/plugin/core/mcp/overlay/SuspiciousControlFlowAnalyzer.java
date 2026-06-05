@@ -17,7 +17,8 @@ public class SuspiciousControlFlowAnalyzer {
 	public JsonArray analyze(Program program, int limit) {
 		List<JsonObject> candidates = new ArrayList<>();
 		FunctionIterator functions = program.getFunctionManager().getFunctions(true);
-		while (functions.hasNext()) {
+		int scanned = 0;
+		while (functions.hasNext() && scanned++ < 10000 && !Thread.currentThread().isInterrupted()) {
 			Function function = functions.next();
 			JsonObject candidate = score(program, function);
 			if (candidate.get("score").getAsDouble() > 0) {
@@ -38,7 +39,7 @@ public class SuspiciousControlFlowAnalyzer {
 		int calls = 0;
 		InstructionIterator iterator =
 			program.getListing().getInstructions(function.getBody(), true);
-		while (iterator.hasNext()) {
+		while (iterator.hasNext() && instructions < 5000 && !Thread.currentThread().isInterrupted()) {
 			Instruction instruction = iterator.next();
 			instructions++;
 			FlowType flowType = instruction.getFlowType();

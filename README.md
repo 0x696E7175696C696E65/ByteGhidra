@@ -152,7 +152,7 @@ The scan is capped for large dumps. It seeds from gameplay strings, symbols, and
 
 ## Feature 3: Ghidra MCP Bridge
 
-`GhidraMcp` exposes Ghidra operations to local AI tools through a loopback bridge and a stdio MCP wrapper. A valid per-session bridge token is the trust boundary: clients with the token get read, navigation, annotation, analysis, mutation, and script execution capabilities.
+`GhidraMcp` exposes Ghidra operations to local AI tools through a loopback bridge and a stdio MCP wrapper. A valid per-session bridge token is required for every request, but mutating capabilities still require explicit policy toggles and per-call confirmation in Ghidra.
 
 The bridge is visible from the GUI by default in the CodeBrowser tool:
 
@@ -207,17 +207,17 @@ Token-authenticated operations include:
 - Disassembly
 - Decompiled function output
 - Navigation, selection, and highlighting
-- Annotation writes: rename symbols, set comments, add bookmarks, set signatures
-- Analysis writes: analyze pending changes or rerun analysis
-- Script tools: `list_ghidra_scripts` and `run_ghidra_script`
-- AI suite tools for tasks, triage, evidence, hypotheses, semantic search, draft generation, and sandbox evidence import
+- Policy-gated annotation writes: rename symbols, set comments, add bookmarks, set signatures
+- Policy-gated program analysis writes: analyze pending changes or rerun analysis
+- Policy-gated script tools: `list_ghidra_scripts` and `run_ghidra_script`
+- Policy-gated AI suite state tools for tasks, triage, evidence, hypotheses, draft generation, and sandbox evidence import
 
 The bridge remains local-only:
 
 - The bridge binds to `127.0.0.1` and requires a per-session token
 - Multiple Ghidra instances can run bridges at once by auto-incrementing from the configured port
 - Bridge controls are visible under `Tools -> Ghidra MCP`
-- Keep the token private; anyone with it can drive the current Ghidra session
+- Keep the token private; policy toggles and confirmations limit what a token-bearing client can do
 
 ```mermaid
 flowchart TD

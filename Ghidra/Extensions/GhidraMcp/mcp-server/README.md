@@ -33,7 +33,7 @@ npm run build
 
 ## Safety Model
 
-The bridge binds to `127.0.0.1` and requires the per-session token on each call. Read-only tools and UI navigation are available by default. Annotation tools such as comments, bookmarks, and renames require enabling `Tools -> Ghidra MCP -> Allow Annotation Writes` in Ghidra and confirming each write. Analysis tools require the separate analysis-write toggle. The wrapper rejects non-loopback `GHIDRA_MCP_URL` values by default. The first version does not expose arbitrary script execution, process launch, file deletion, or unrestricted project mutation.
+The bridge binds to `127.0.0.1` and requires the per-session token on each call. Read-only tools and UI navigation are available by default. Annotation tools such as comments, bookmarks, and renames require enabling `Tools -> Ghidra MCP -> Token Grants Annotation Writes` in Ghidra and confirming each write. AI-suite task/evidence/hypothesis changes require the separate AI-suite state-write toggle. Program analysis tools require the separate program-analysis toggle. Ghidra script listing and execution require the separate script-execution toggle and confirmation. The wrapper rejects non-loopback `GHIDRA_MCP_URL` values by default. The bridge does not expose process launch, file deletion, or unrestricted project mutation.
 
 ## AI Suite Tools
 
@@ -46,7 +46,7 @@ The wrapper also exposes the AI malware-analysis suite:
 - Draft generation tools: `draft_yara_rule`, `draft_config_extractor`, `suggest_type_recovery`
 - Sandbox import tools: `import_sandbox_evidence`, `map_runtime_event_to_function`
 
-`run_triage`, task changes, hypothesis changes, and sandbox imports mutate only the suite's in-memory analysis state, but they still use the bridge's analysis-write policy gate. Draft generation tools return preview artifacts; they do not write files or apply types automatically.
+`run_triage`, task changes, hypothesis changes, and sandbox imports mutate only the suite's analysis state, but they still use the bridge's AI-suite state-write policy gate. Draft generation tools return preview artifacts; they do not write files or apply types automatically.
 
 Example tool arguments:
 

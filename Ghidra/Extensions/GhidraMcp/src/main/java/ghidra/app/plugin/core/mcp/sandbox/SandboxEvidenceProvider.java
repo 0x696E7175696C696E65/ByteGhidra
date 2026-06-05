@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import javax.swing.*;
 
 import ghidra.app.plugin.core.mcp.ai.AiAnalysisService;
+import ghidra.app.plugin.core.mcp.sandbox.SandboxEvidenceImporter.ImportResult;
 import ghidra.framework.plugintool.ComponentProviderAdapter;
 import ghidra.framework.plugintool.PluginTool;
 import ghidra.program.model.listing.Program;
@@ -43,10 +44,12 @@ public class SandboxEvidenceProvider extends ComponentProviderAdapter {
 
 	private void importEvidence() {
 		try {
-			int count = new SandboxEvidenceImporter().importFile(Path.of(path.getText()), program,
+			ImportResult result = new SandboxEvidenceImporter().importFile(Path.of(path.getText()), program,
 				service.evidence());
-			service.session().record("sandbox", "Imported sandbox evidence", count + " events");
-			status.setText("Imported " + count + " runtime events.");
+			service.session().record("sandbox", "Imported sandbox evidence",
+				result.imported() + " imported, " + result.skipped() + " skipped");
+			status.setText("Imported " + result.imported() + " runtime events; skipped " +
+				result.skipped() + ".");
 		}
 		catch (Exception e) {
 			status.setText("Import failed: " + e.getMessage());

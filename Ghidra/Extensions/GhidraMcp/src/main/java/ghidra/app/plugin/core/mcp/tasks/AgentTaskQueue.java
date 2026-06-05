@@ -7,7 +7,7 @@ package ghidra.app.plugin.core.mcp.tasks;
 
 import java.util.*;
 
-import com.google.gson.JsonArray;
+import com.google.gson.*;
 
 public class AgentTaskQueue {
 	private final List<AgentTask> tasks = new ArrayList<>();
@@ -42,6 +42,15 @@ public class AgentTaskQueue {
 		return task;
 	}
 
+	public synchronized AgentTask cancel(String id) {
+		AgentTask task = get(id);
+		if (task != null) {
+			task.requestCancel();
+			notifyListeners();
+		}
+		return task;
+	}
+
 	public synchronized void addChangeListener(Runnable listener) {
 		listeners.add(listener);
 	}
@@ -52,6 +61,16 @@ public class AgentTaskQueue {
 			array.add(task.toJson());
 		}
 		return array;
+	}
+
+	public synchronized void importJsonArray(JsonArray array) {
+		tasks.clear();
+		for (JsonElement element : array) {
+			if (element.isJsonObject()) {
+				tasks.add(AgentTask.fromJson(element.getAsJsonObject()));
+			}
+		}
+		notifyListeners();
 	}
 
 	private void notifyListeners() {

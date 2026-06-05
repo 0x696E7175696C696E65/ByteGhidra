@@ -7,7 +7,7 @@ package ghidra.app.plugin.core.mcp.hypotheses;
 
 import java.util.*;
 
-import com.google.gson.JsonArray;
+import com.google.gson.*;
 
 public class HypothesisStore {
 	private final List<Hypothesis> hypotheses = new ArrayList<>();
@@ -43,6 +43,16 @@ public class HypothesisStore {
 			array.add(hypothesis.toJson());
 		}
 		return array;
+	}
+
+	public synchronized void importJsonArray(JsonArray array) {
+		hypotheses.clear();
+		for (JsonElement element : array) {
+			if (element.isJsonObject()) {
+				hypotheses.add(Hypothesis.fromJson(element.getAsJsonObject()));
+			}
+		}
+		notifyListeners();
 	}
 
 	private void notifyListeners() {

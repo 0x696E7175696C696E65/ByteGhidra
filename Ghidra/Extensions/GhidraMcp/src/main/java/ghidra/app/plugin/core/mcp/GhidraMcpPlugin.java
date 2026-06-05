@@ -20,14 +20,18 @@ import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
 
 import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
 
 import docking.ActionContext;
 import docking.action.*;
 import ghidra.app.events.ProgramHighlightPluginEvent;
 import ghidra.app.plugin.PluginCategoryNames;
 import ghidra.app.plugin.ProgramPlugin;
+import ghidra.app.plugin.core.mcp.ai.AiAnalysisService;
 import ghidra.app.plugin.core.mcp.bridge.*;
 import ghidra.app.plugin.core.mcp.ops.*;
+import ghidra.app.plugin.core.mcp.ops.GhidraMcpOperation.OperationKind;
+import ghidra.app.plugin.core.mcp.security.ConfirmationPolicy;
 import ghidra.app.plugin.core.mcp.security.GhidraMcpPolicy;
 import ghidra.framework.options.ToolOptions;
 import ghidra.framework.plugintool.*;
@@ -45,7 +49,7 @@ import ghidra.util.task.TaskMonitor;
 	packageName = GhidraMcpPluginPackage.NAME,
 	category = PluginCategoryNames.COMMON,
 	shortDescription = "Ghidra MCP bridge",
-	description = "Exposes token-authenticated Ghidra analysis, mutation, UI, and script operations to local MCP clients.",
+	description = "Exposes token-authenticated Ghidra analysis, UI, AI-suite, and explicitly gated mutation/script operations to local MCP clients.",
 	servicesProvided = { GhidraMcpService.class },
 	eventsProduced = { ProgramHighlightPluginEvent.class }
 )
@@ -57,14 +61,17 @@ public class GhidraMcpPlugin extends ProgramPlugin implements GhidraMcpService {
 		new HelpLocation("GhidraMcpPlugin", "Ghidra_MCP");
 
 	private final OperationRegistry operations = new OperationRegistry();
+	private final ConfirmationPolicy confirmationPolicy = new ConfirmationPolicy();
 	private GhidraMcpPolicy policy = GhidraMcpPolicy.defaults();
 	private GhidraMcpBridgeServer bridgeServer;
 	private DockingAction startAction;
 	private DockingAction stopAction;
 	private DockingAction copyTokenAction;
 	private DockingAction statusAction;
+	private ToggleDockingAction suiteStateWritesAction;
 	private ToggleDockingAction annotationWritesAction;
 	private ToggleDockingAction analysisWritesAction;
+	private ToggleDockingAction scriptsAction;
 
 	public GhidraMcpPlugin(PluginTool tool) {
 		super(tool);
@@ -80,6 +87,13 @@ public class GhidraMcpPlugin extends ProgramPlugin implements GhidraMcpService {
 	@Override
 	public GhidraMcpResponse execute(String operationName, JsonObject params) {
 		Msg.info(this, "Ghidra MCP operation requested: " + operationName);
+		AiAnalysisService.shared().activateProgram(currentProgram);
+		GhidraMcpOperation operation = operations.get(operationName);
+		if (operation != null && policy.isAllowed(operation.kind()) &&
+			!confirmationPolicy.confirm(tool, operation.kind(), operationName)) {
+			return GhidraMcpResponse.error("confirmation_declined",
+				"User declined MCP operation: " + operationName);
+		}
 		GhidraMcpContext context = new GhidraMcpContext(this, tool, currentProgram, currentLocation,
 			currentSelection, currentHighlight, policy, TaskMonitor.DUMMY);
 		return operations.execute(context, operationName, params);
@@ -91,9 +105,28 @@ public class GhidraMcpPlugin extends ProgramPlugin implements GhidraMcpService {
 		status.addProperty("bridgeStarted", isBridgeStarted());
 		status.addProperty("programActive", currentProgram != null);
 		status.addProperty("programName", currentProgram == null ? null : currentProgram.getName());
+		status.addProperty("suiteStateWritesEnabled", policy.allowsSuiteStateWrites());
 		status.addProperty("annotationWritesEnabled", policy.allowsAnnotationWrites());
 		status.addProperty("analysisWritesEnabled", policy.allowsAnalysisWrites());
+		status.addProperty("scriptsEnabled", policy.allowsScripts());
 		status.addProperty("dangerousOperationsEnabled", policy.allowsDangerousOperations());
+		JsonArray disabledCapabilities = new JsonArray();
+		if (!policy.allowsSuiteStateWrites()) {
+			disabledCapabilities.add("suite_state_writes");
+		}
+		if (!policy.allowsAnnotationWrites()) {
+			disabledCapabilities.add("annotation_writes");
+		}
+		if (!policy.allowsAnalysisWrites()) {
+			disabledCapabilities.add("analysis_writes");
+		}
+		if (!policy.allowsScripts()) {
+			disabledCapabilities.add("script_execution");
+		}
+		if (!policy.allowsDangerousOperations()) {
+			disabledCapabilities.add("dangerous_operations");
+		}
+		status.add("disabledCapabilities", disabledCapabilities);
 		status.add("operations", operations.operationNames());
 		if (bridgeServer != null) {
 			status.addProperty("url", "http://" + bridgeServer.getAddress().getHostString() + ":" +
@@ -221,15 +254,29 @@ public class GhidraMcpPlugin extends ProgramPlugin implements GhidraMcpService {
 			new MenuData(new String[] { "Tools", "Ghidra MCP", "Status..." }));
 		tool.addAction(statusAction);
 
+		suiteStateWritesAction =
+			new ToggleDockingAction("Ghidra MCP Token Grants AI Suite State Writes", getName()) {
+				@Override
+				public void actionPerformed(ActionContext context) {
+					updatePolicy();
+					Msg.info(this, "Ghidra MCP AI suite state writes are " +
+						(suiteStateWritesAction.isSelected() ? "enabled" : "disabled"));
+				}
+			};
+		suiteStateWritesAction.setSelected(false);
+		suiteStateWritesAction.setMenuBarData(
+			new MenuData(new String[] { "Tools", "Ghidra MCP", "Token Grants AI Suite State Writes" }));
+		tool.addAction(suiteStateWritesAction);
+
 		annotationWritesAction = new ToggleDockingAction("Ghidra MCP Token Grants Annotation Writes", getName()) {
 			@Override
 			public void actionPerformed(ActionContext context) {
 				updatePolicy();
-				Msg.info(this, "Ghidra MCP annotation writes are enabled for valid bridge tokens");
+				Msg.info(this, "Ghidra MCP annotation writes are " +
+					(annotationWritesAction.isSelected() ? "enabled" : "disabled"));
 			}
 		};
-		annotationWritesAction.setSelected(true);
-		annotationWritesAction.setEnabled(false);
+		annotationWritesAction.setSelected(false);
 		annotationWritesAction.setMenuBarData(
 			new MenuData(new String[] { "Tools", "Ghidra MCP", "Token Grants Annotation Writes" }));
 		tool.addAction(annotationWritesAction);
@@ -238,14 +285,27 @@ public class GhidraMcpPlugin extends ProgramPlugin implements GhidraMcpService {
 			@Override
 			public void actionPerformed(ActionContext context) {
 				updatePolicy();
-				Msg.info(this, "Ghidra MCP analysis writes and scripts are enabled for valid bridge tokens");
+				Msg.info(this, "Ghidra MCP analysis writes are " +
+					(analysisWritesAction.isSelected() ? "enabled" : "disabled"));
 			}
 		};
-		analysisWritesAction.setSelected(true);
-		analysisWritesAction.setEnabled(false);
+		analysisWritesAction.setSelected(false);
 		analysisWritesAction.setMenuBarData(
-			new MenuData(new String[] { "Tools", "Ghidra MCP", "Token Grants Analysis Writes + Scripts" }));
+			new MenuData(new String[] { "Tools", "Ghidra MCP", "Token Grants Program Analysis Writes" }));
 		tool.addAction(analysisWritesAction);
+
+		scriptsAction = new ToggleDockingAction("Ghidra MCP Token Grants Script Execution", getName()) {
+			@Override
+			public void actionPerformed(ActionContext context) {
+				updatePolicy();
+				Msg.info(this, "Ghidra MCP script execution is " +
+					(scriptsAction.isSelected() ? "enabled" : "disabled"));
+			}
+		};
+		scriptsAction.setSelected(false);
+		scriptsAction.setMenuBarData(
+			new MenuData(new String[] { "Tools", "Ghidra MCP", "Token Grants Script Execution" }));
+		tool.addAction(scriptsAction);
 
 		updateActions();
 	}
@@ -278,9 +338,11 @@ public class GhidraMcpPlugin extends ProgramPlugin implements GhidraMcpService {
 		Msg.showInfo(this, tool.getToolFrame(), "Ghidra MCP",
 			"Bridge: " + status + "\n" +
 				"Program active: " + (currentProgram != null ? currentProgram.getName() : "No") +
+				"\nAI suite state writes: " + policy.allowsSuiteStateWrites() +
 				"\nAnnotation writes: " + policy.allowsAnnotationWrites() +
 				"\nAnalysis writes: " + policy.allowsAnalysisWrites() +
-				"\nDangerous/script operations: " + policy.allowsDangerousOperations() +
+				"\nScript execution: " + policy.allowsScripts() +
+				"\nDangerous operations: " + policy.allowsDangerousOperations() +
 				"\nOptions: Edit -> Tool Options -> Ghidra MCP" +
 				"\nToken: " + token);
 	}
@@ -298,6 +360,11 @@ public class GhidraMcpPlugin extends ProgramPlugin implements GhidraMcpService {
 	}
 
 	private void updatePolicy() {
-		policy = GhidraMcpPolicy.tokenTrusted();
+		policy = new GhidraMcpPolicy(true, true,
+			suiteStateWritesAction != null && suiteStateWritesAction.isSelected(),
+			annotationWritesAction != null && annotationWritesAction.isSelected(),
+			analysisWritesAction != null && analysisWritesAction.isSelected(),
+			scriptsAction != null && scriptsAction.isSelected(),
+			false, false);
 	}
 }

@@ -33,12 +33,12 @@ public final class ScriptOps {
 	}
 
 	public static void register(OperationRegistry registry) {
-		registry.register(dangerous("list_ghidra_scripts", ScriptOps::listScripts));
-		registry.register(dangerous("run_ghidra_script", ScriptOps::runScript));
+		registry.register(script("list_ghidra_scripts", ScriptOps::listScripts));
+		registry.register(script("run_ghidra_script", ScriptOps::runScript));
 	}
 
-	private static GhidraMcpOperation dangerous(String name, OperationBody body) {
-		return new SimpleOperation(name, OperationKind.DANGEROUS, body);
+	private static GhidraMcpOperation script(String name, OperationBody body) {
+		return new SimpleOperation(name, OperationKind.SCRIPT_EXECUTION, body);
 	}
 
 	private static GhidraMcpResponse listScripts(GhidraMcpContext context, JsonObject params) {

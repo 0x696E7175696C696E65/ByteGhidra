@@ -24,13 +24,23 @@ public class TriageEngine {
 		"CreateRemoteThread", "OpenProcess", "QueueUserAPC");
 	private static final Set<String> ANTI_DEBUG_APIS = Set.of("IsDebuggerPresent",
 		"CheckRemoteDebuggerPresent", "NtQueryInformationProcess", "OutputDebugString");
+	private static final Set<String> CRYPTO_APIS = Set.of("CryptAcquireContext", "CryptDecrypt",
+		"CryptEncrypt", "BCrypt", "NCrypt", "SystemFunction032");
+	private static final Set<String> ANTI_VM_APIS = Set.of("GetSystemFirmwareTable", "RegOpenKey",
+		"SetupDiGetClassDevs", "EnumDisplayDevices");
+	private static final Set<String> CREDENTIAL_APIS = Set.of("CredEnumerate", "CredRead",
+		"LsaRetrievePrivateData", "SamI", "Vault");
+	private static final Set<String> DISCOVERY_APIS = Set.of("CreateToolhelp32Snapshot",
+		"Process32First", "Process32Next", "EnumProcesses", "NetUserEnum");
+	private static final Set<String> FILE_STAGING_APIS = Set.of("CreateFile", "WriteFile",
+		"MoveFile", "CopyFile", "GetTempPath");
 
 	public TriageReport run(Program program, EvidenceStore evidenceStore, TaskMonitor monitor) {
 		TriageReport report = new TriageReport(program.getName());
 		collectMemoryFindings(program, evidenceStore, report);
-		collectImportFindings(program, evidenceStore, report);
+		collectImportFindings(program, evidenceStore, report, monitor);
 		collectStringFindings(program, evidenceStore, report, monitor);
-		collectFunctionFindings(program, evidenceStore, report);
+		collectFunctionFindings(program, evidenceStore, report, monitor);
 		return report;
 	}
 
@@ -54,15 +64,23 @@ public class TriageEngine {
 		}
 	}
 
-	private void collectImportFindings(Program program, EvidenceStore store, TriageReport report) {
+	private void collectImportFindings(Program program, EvidenceStore store, TriageReport report,
+			TaskMonitor monitor) {
 		SymbolIterator symbols = program.getSymbolTable().getExternalSymbols();
-		while (symbols.hasNext()) {
+		int count = 0;
+		while (symbols.hasNext() && count++ < 5000 && !monitor.isCancelled() &&
+			!Thread.currentThread().isInterrupted()) {
 			Symbol symbol = symbols.next();
 			String name = symbol.getName();
 			classifyImport(store, report, symbol, name, NETWORK_APIS, "network", "medium");
 			classifyImport(store, report, symbol, name, PERSISTENCE_APIS, "persistence", "medium");
 			classifyImport(store, report, symbol, name, INJECTION_APIS, "injection", "high");
 			classifyImport(store, report, symbol, name, ANTI_DEBUG_APIS, "anti-debug", "medium");
+			classifyImport(store, report, symbol, name, CRYPTO_APIS, "crypto", "medium");
+			classifyImport(store, report, symbol, name, ANTI_VM_APIS, "anti-vm", "medium");
+			classifyImport(store, report, symbol, name, CREDENTIAL_APIS, "credential-access", "high");
+			classifyImport(store, report, symbol, name, DISCOVERY_APIS, "process-discovery", "medium");
+			classifyImport(store, report, symbol, name, FILE_STAGING_APIS, "filesystem-staging", "medium");
 		}
 	}
 
@@ -88,28 +106,44 @@ public class TriageEngine {
 			Object value = data.getValue();
 			String text = value == null ? "" : value.toString();
 			String lower = text.toLowerCase(Locale.ROOT);
+			Function containingFunction =
+				program.getFunctionManager().getFunctionContaining(data.getMinAddress());
+			String functionName = containingFunction == null ? null : containingFunction.getName(true);
 			if (lower.startsWith("http://") || lower.startsWith("https://") || lower.contains(".onion")) {
-				add(store, report, "network", "high", data.getMinAddress().toString(), null,
+				add(store, report, "network", "high", data.getMinAddress().toString(), functionName,
 					"Network indicator string",
-					text, 0.8, List.of("string", "network"));
+					stringDetails(program, data, text), 0.8, List.of("string", "network"));
 			}
 			else if (lower.contains("software\\microsoft\\windows\\currentversion\\run") ||
 				lower.contains("schtasks") || lower.contains("startup")) {
-				add(store, report, "persistence", "medium", data.getMinAddress().toString(), null,
+				add(store, report, "persistence", "medium", data.getMinAddress().toString(), functionName,
 					"Persistence-related string",
-					text, 0.65, List.of("string", "persistence"));
+					stringDetails(program, data, text), 0.65, List.of("string", "persistence"));
 			}
 			else if (lower.contains("cmd.exe") || lower.contains("powershell") || lower.contains("/c ")) {
-				add(store, report, "command", "medium", data.getMinAddress().toString(), null,
+				add(store, report, "command", "medium", data.getMinAddress().toString(), functionName,
 					"Command execution string",
-					text, 0.7, List.of("string", "command"));
+					stringDetails(program, data, text), 0.7, List.of("string", "command"));
 			}
 		}
 	}
 
-	private void collectFunctionFindings(Program program, EvidenceStore store, TriageReport report) {
+	private String stringDetails(Program program, Data data, String text) {
+		int xrefCount = 0;
+		ReferenceIterator references = program.getReferenceManager().getReferencesTo(data.getMinAddress());
+		while (references.hasNext() && xrefCount < 25) {
+			xrefCount++;
+			references.next();
+		}
+		return text + "\nXrefs observed: " + xrefCount;
+	}
+
+	private void collectFunctionFindings(Program program, EvidenceStore store, TriageReport report,
+			TaskMonitor monitor) {
 		FunctionIterator iterator = program.getFunctionManager().getFunctions(true);
-		while (iterator.hasNext()) {
+		int count = 0;
+		while (iterator.hasNext() && count++ < 10000 && !monitor.isCancelled() &&
+			!Thread.currentThread().isInterrupted()) {
 			Function function = iterator.next();
 			if (function.getBody().getNumAddresses() > 0x4000) {
 				add(store, report, "complexity", "low", function.getEntryPoint().toString(),

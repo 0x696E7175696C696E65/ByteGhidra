@@ -23,8 +23,10 @@ public interface GhidraMcpOperation {
 	enum OperationKind {
 		READ_ONLY,
 		UI_ONLY,
+		SUITE_STATE_WRITE,
 		ANNOTATION_WRITE,
 		ANALYSIS_WRITE,
+		SCRIPT_EXECUTION,
 		DANGEROUS
 	}
 

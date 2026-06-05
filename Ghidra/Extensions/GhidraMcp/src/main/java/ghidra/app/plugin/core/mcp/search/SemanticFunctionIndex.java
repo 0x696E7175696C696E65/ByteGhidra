@@ -10,15 +10,18 @@ import java.util.*;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
+import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.*;
 import ghidra.program.model.symbol.Reference;
+import ghidra.program.model.symbol.Symbol;
 
 public class SemanticFunctionIndex {
 	public JsonArray search(Program program, String query, int limit) {
 		String[] terms = query.toLowerCase(Locale.ROOT).split("\\s+");
 		List<JsonObject> ranked = new ArrayList<>();
 		FunctionIterator iterator = program.getFunctionManager().getFunctions(true);
-		while (iterator.hasNext()) {
+		int scanned = 0;
+		while (iterator.hasNext() && scanned++ < 10000 && !Thread.currentThread().isInterrupted()) {
 			Function function = iterator.next();
 			double score = score(program, function, terms);
 			if (score <= 0) {
@@ -58,12 +61,34 @@ public class SemanticFunctionIndex {
 
 	private String featureText(Program program, Function function) {
 		StringBuilder builder = new StringBuilder(function.getName(true));
+		append(builder, function.getComment());
+		append(builder, function.getRepeatableComment());
+		InstructionIterator instructions =
+			program.getListing().getInstructions(function.getBody(), true);
+		int instructionCount = 0;
+		while (instructions.hasNext() && instructionCount++ < 200) {
+			Instruction instruction = instructions.next();
+			append(builder, instruction.toString());
+			append(builder, instruction.getComment(CodeUnit.EOL_COMMENT));
+			append(builder, instruction.getComment(CodeUnit.PRE_COMMENT));
+		}
 		for (Reference reference : program.getReferenceManager().getReferencesFrom(function.getEntryPoint())) {
 			builder.append(' ').append(reference.getReferenceType().getName());
-			if (reference.getToAddress() != null) {
-				builder.append(' ').append(reference.getToAddress());
+			Address toAddress = reference.getToAddress();
+			if (toAddress != null) {
+				builder.append(' ').append(toAddress);
+				Symbol symbol = program.getSymbolTable().getPrimarySymbol(toAddress);
+				if (symbol != null) {
+					append(builder, symbol.getName(true));
+				}
 			}
 		}
 		return builder.toString();
+	}
+
+	private void append(StringBuilder builder, String text) {
+		if (text != null && !text.isBlank()) {
+			builder.append(' ').append(text);
+		}
 	}
 }

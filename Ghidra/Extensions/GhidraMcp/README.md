@@ -7,7 +7,7 @@
 From the repository root:
 
 ```powershell
-./gradlew.bat :GhidraMcp:buildExtension
+./gradlew.bat :GhidraMcp:build :GhidraMcp:zipExtensions
 ```
 
 Install the generated extension zip from the module's `dist` directory using `File -> Install Extensions`, then restart Ghidra and enable the `Ghidra MCP` plugin.
@@ -19,13 +19,13 @@ Install the generated extension zip from the module's `dist` directory using `Fi
 3. Choose `Tools -> Ghidra MCP -> Copy Bridge Token`.
 4. Configure the MCP wrapper in `mcp-server` with `GHIDRA_MCP_URL` and `GHIDRA_MCP_TOKEN`.
 
-Read-only operations include function, symbol, string, memory block, xref, disassembly, and decompiler queries. UI-only operations can navigate, select, and highlight ranges. Annotation writes and analysis writes are disabled by default and require explicit `Tools -> Ghidra MCP` toggles plus per-call confirmation.
+Read-only operations include function, symbol, string, memory block, xref, disassembly, and decompiler queries. UI-only operations can navigate, select, and highlight ranges. Annotation writes, AI-suite state writes, program analysis writes, and script execution are disabled by default and require separate `Tools -> Ghidra MCP` toggles plus per-call confirmation.
 
 ## AI Malware Analysis Suite
 
 Enable the `AI malware analysis suite` plugin to open the shared analysis workspace. It adds dockable providers for agent tasks, evidence, session timeline, triage dashboard, hypotheses, evidence-backed explanations, semantic function search, decompiler diff notes, suspicious control-flow candidates, YARA drafts, config extractor drafts, type-recovery suggestions, and sandbox evidence import.
 
-The suite keeps shared in-memory state through `AiAnalysisService`, so UI actions and MCP tools operate on the same task queue, evidence records, hypotheses, and session events.
+The suite keeps active-program analysis state through `AiAnalysisService`, so UI actions and MCP tools operate on the same task queue, evidence records, hypotheses, and session events for the current program. Switching programs switches the active AI session instead of mixing evidence between binaries.
 
 ### Analysis Workflow
 
@@ -55,7 +55,8 @@ Imported runtime events become `sandbox` evidence records and are mapped back to
 Useful MCP tools include:
 
 - `create_agent_task`, `list_agent_tasks`, `approve_agent_task`, `cancel_agent_task`
-- `run_triage`, `list_evidence`, `get_evidence`, `explain_with_evidence`
+- `run_triage`, `start_triage_task`, `list_evidence`, `get_evidence`, `explain_with_evidence`
+- `export_ai_session`, `import_ai_session`
 - `create_hypothesis`, `link_evidence`, `set_hypothesis_status`, `list_hypotheses`
 - `semantic_function_search`, `find_suspicious_control_flow`
 - `draft_yara_rule`, `draft_config_extractor`, `suggest_type_recovery`
@@ -63,16 +64,17 @@ Useful MCP tools include:
 
 ## Malware Analysis Safety
 
-This extension is meant to help inspect and annotate programs already loaded into Ghidra. It does not execute malware samples, launch processes, delete files, or run arbitrary Ghidra scripts from AI instructions. Keep dangerous automation out of the MCP surface unless a future version adds a separate allowlist and confirmation model for those operations.
+This extension is meant to help inspect and annotate programs already loaded into Ghidra. It does not execute malware samples, launch processes, or delete files. Ghidra script execution is available only when the explicit script-execution policy toggle is enabled and the user confirms the operation. Keep dangerous automation out of the MCP surface unless a future version adds a separate allowlist and confirmation model for those operations.
 
 Generated YARA rules, config extractors, and type-recovery output are drafts. They are shown as preview data and are not applied to the program automatically. Sandbox integration is file-based only; live debugger or sandbox streaming is intentionally deferred.
 
 ## Manual Verification
 
-1. Build and install the extension, then enable `Ghidra MCP` and `AI malware analysis suite`.
-2. Load a small binary and run `AI Analysis -> Run Triage`.
-3. Confirm the triage dashboard and evidence table populate with address/function-backed records.
-4. Use `AI Explain With Evidence` to verify explanations cite evidence IDs.
-5. Create a hypothesis and link evidence through MCP.
-6. Draft YARA/config/type suggestions and confirm they are preview-only.
-7. Import a small JSON or CSV sandbox trace and verify runtime events appear in evidence.
+1. Run `./gradlew.bat :GhidraMcp:test :GhidraMcp:testMcpServer :GhidraMcp:build :GhidraMcp:zipExtensions :GhidraMcp:verifyMcpExtensionArtifact`.
+2. Build and install the extension, then enable `Ghidra MCP` and `AI malware analysis suite`.
+3. Load a small binary and run `AI Analysis -> Run Triage`.
+4. Confirm the triage dashboard and evidence table populate with address/function-backed records.
+5. Use `AI Explain With Evidence` to verify explanations cite evidence IDs.
+6. Create a hypothesis and link evidence through MCP.
+7. Draft YARA/config/type suggestions and confirm they are preview-only.
+8. Import a small JSON or CSV sandbox trace and verify runtime events appear in evidence.

@@ -55,7 +55,18 @@ class GhidraMcpRequestHandler implements HttpHandler {
 				write(exchange, 405, GhidraMcpResponse.error("method_not_allowed", "Use POST").toJson());
 				return;
 			}
-			JsonObject request = JsonParser.parseString(readBody(exchange)).getAsJsonObject();
+			JsonElement parsed = JsonParser.parseString(readBody(exchange));
+			if (!parsed.isJsonObject()) {
+				write(exchange, 400,
+					GhidraMcpResponse.error("invalid_request", "Request body must be a JSON object").toJson());
+				return;
+			}
+			JsonObject request = parsed.getAsJsonObject();
+			if (!request.has("operation") || !request.get("operation").isJsonPrimitive()) {
+				write(exchange, 400,
+					GhidraMcpResponse.error("invalid_request", "Missing string operation").toJson());
+				return;
+			}
 			String operation = request.get("operation").getAsString();
 			JsonObject params =
 				request.has("params") && request.get("params").isJsonObject()
@@ -64,7 +75,7 @@ class GhidraMcpRequestHandler implements HttpHandler {
 			write(exchange, 200, service.execute(operation, params).toJson());
 		}
 		catch (JsonParseException | IllegalStateException | NullPointerException e) {
-			write(exchange, 400, GhidraMcpResponse.error("bad_request", e.getMessage()).toJson());
+			write(exchange, 400, GhidraMcpResponse.error("invalid_request", e.getMessage()).toJson());
 		}
 		catch (Exception e) {
 			write(exchange, 500, GhidraMcpResponse.error("internal_error", e.getMessage()).toJson());

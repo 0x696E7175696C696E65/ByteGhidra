@@ -8,8 +8,7 @@ package ghidra.app.plugin.core.mcp.hypotheses;
 import java.time.Instant;
 import java.util.*;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
+import com.google.gson.*;
 
 public class Hypothesis {
 	public enum Status {
@@ -23,9 +22,13 @@ public class Hypothesis {
 	private Status status = Status.OPEN;
 
 	public Hypothesis(String id, String text) {
+		this(id, text, Instant.now());
+	}
+
+	private Hypothesis(String id, String text, Instant createdAt) {
 		this.id = id;
 		this.text = text;
-		this.createdAt = Instant.now();
+		this.createdAt = createdAt;
 	}
 
 	public String id() {
@@ -62,5 +65,23 @@ public class Hypothesis {
 		}
 		object.add("evidenceIds", evidence);
 		return object;
+	}
+
+	public static Hypothesis fromJson(JsonObject object) {
+		Hypothesis hypothesis = new Hypothesis(get(object, "id"), get(object, "text"),
+			object.has("createdAt") ? Instant.parse(object.get("createdAt").getAsString()) : Instant.now());
+		if (object.has("status")) {
+			hypothesis.setStatus(Status.valueOf(object.get("status").getAsString()));
+		}
+		if (object.has("evidenceIds") && object.get("evidenceIds").isJsonArray()) {
+			for (JsonElement element : object.getAsJsonArray("evidenceIds")) {
+				hypothesis.linkEvidence(element.getAsString());
+			}
+		}
+		return hypothesis;
+	}
+
+	private static String get(JsonObject object, String name) {
+		return object.has(name) && !object.get(name).isJsonNull() ? object.get(name).getAsString() : "";
 	}
 }

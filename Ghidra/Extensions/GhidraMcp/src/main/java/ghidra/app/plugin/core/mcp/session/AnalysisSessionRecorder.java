@@ -7,7 +7,7 @@ package ghidra.app.plugin.core.mcp.session;
 
 import java.util.*;
 
-import com.google.gson.JsonArray;
+import com.google.gson.*;
 
 public class AnalysisSessionRecorder {
 	private final List<AnalysisSessionEvent> events = new ArrayList<>();
@@ -34,6 +34,16 @@ public class AnalysisSessionRecorder {
 			array.add(event.toJson());
 		}
 		return array;
+	}
+
+	public synchronized void importJsonArray(JsonArray array) {
+		events.clear();
+		for (JsonElement element : array) {
+			if (element.isJsonObject()) {
+				events.add(AnalysisSessionEvent.fromJson(element.getAsJsonObject()));
+			}
+		}
+		notifyListeners();
 	}
 
 	private void notifyListeners() {

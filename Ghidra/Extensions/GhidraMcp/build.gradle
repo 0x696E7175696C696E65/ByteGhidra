@@ -28,7 +28,7 @@ tasks.register("installMcpServerDependencies", Exec) {
 	group = "private"
 	description = "Installs dependencies for the Ghidra MCP stdio wrapper."
 	workingDir mcpServerDir
-	commandLine npmCommand, "install"
+	commandLine npmCommand, "ci"
 	inputs.file file("mcp-server/package-lock.json")
 	outputs.dir file("mcp-server/node_modules")
 }
@@ -42,6 +42,40 @@ tasks.register("buildMcpServer", Exec) {
 	inputs.dir file("mcp-server/src")
 	inputs.file file("mcp-server/tsconfig.json")
 	outputs.dir file("mcp-server/dist")
+}
+
+tasks.register("testMcpServer", Exec) {
+	group = "verification"
+	description = "Runs the Ghidra MCP stdio wrapper test suite."
+	dependsOn "installMcpServerDependencies"
+	workingDir mcpServerDir
+	commandLine npmCommand, "test"
+	inputs.dir file("mcp-server/src")
+	inputs.dir file("mcp-server/test")
+	inputs.file file("mcp-server/package-lock.json")
+}
+
+tasks.register("verifyMcpExtensionArtifact") {
+	group = "verification"
+	description = "Verifies the extension zip contains built MCP wrapper artifacts and excludes sources/dependencies."
+	dependsOn "zipExtensions"
+	doLast {
+		def zipFile = tasks.named("zipExtensions").get().archiveFile.get().asFile
+		def entries = []
+		new java.util.zip.ZipFile(zipFile).withCloseable { zip ->
+			zip.entries().each { entries << it.name }
+		}
+		["mcp-server/dist/index.js", "mcp-server/dist/tools.js", "mcp-server/dist/bridgeClient.js"].each { required ->
+			if (!entries.any { it.endsWith(required) }) {
+				throw new GradleException("Missing MCP artifact from extension zip: ${required}")
+			}
+		}
+		["mcp-server/node_modules/", "mcp-server/src/"].each { forbidden ->
+			if (entries.any { it.contains(forbidden) }) {
+				throw new GradleException("Forbidden MCP path in extension zip: ${forbidden}")
+			}
+		}
+	}
 }
 
 zipExtensions {
