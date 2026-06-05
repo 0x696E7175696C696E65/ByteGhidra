@@ -234,7 +234,7 @@ flowchart TD
 
 ### AI Malware Analysis Suite
 
-`GhidraMcp` also includes an AI-assisted malware-analysis workspace built on the same local bridge and policy model. Enable the `AI malware analysis suite` plugin to open dockable panels for:
+`GhidraMcp` also includes an AI-assisted malware-analysis workspace built on the same local bridge and policy model. Enable the `AI malware analysis suite` plugin to open the consolidated `AI Analysis Workspace` plus focused dockable panels for:
 
 - Agent task queue
 - Evidence table
@@ -250,7 +250,9 @@ flowchart TD
 - Type-recovery suggestions
 - Sandbox evidence import
 
-The suite stores shared in-memory analysis state through `AiAnalysisService`, so UI actions and MCP tools see the same evidence records, tasks, hypotheses, and timeline events.
+The suite stores active-program analysis sessions through `AiAnalysisService`, so evidence, tasks, hypotheses, and timeline events stay scoped to the binary currently loaded in Ghidra. Sessions can be exported/imported as JSON for handoff, and rerunning triage deduplicates stable evidence instead of piling up repeated findings.
+
+The workspace is designed for analyst flow: evidence filters, double-click address navigation, background triage tasks with progress/cancellation, task templates for config parsing/C2/persistence/YARA/type recovery, and copyable session JSON exports.
 
 ```text
 AI Analysis -> Queue Triage Task
@@ -260,13 +262,20 @@ AI Analysis -> Run Triage
 MCP tools added for the suite include:
 
 - `create_agent_task`, `list_agent_tasks`, `approve_agent_task`, `cancel_agent_task`
-- `run_triage`, `list_evidence`, `get_evidence`, `explain_with_evidence`
+- `run_triage`, `start_triage_task`, `list_evidence`, `get_evidence`, `explain_with_evidence`
+- `export_ai_session`, `import_ai_session`, `get_mcp_status`
 - `create_hypothesis`, `link_evidence`, `set_hypothesis_status`, `list_hypotheses`
 - `semantic_function_search`, `find_suspicious_control_flow`
 - `draft_yara_rule`, `draft_config_extractor`, `suggest_type_recovery`
 - `import_sandbox_evidence`, `map_runtime_event_to_function`
 
-Generated YARA rules, config extractors, and type-recovery output are preview-only drafts. Sandbox integration imports JSON or CSV traces from local files first; live debugger or sandbox streaming is intentionally deferred.
+Generated YARA rules, config extractors, and type-recovery output are preview-only drafts that cite evidence IDs where possible. Sandbox integration imports validated JSON or CSV traces from local files first, reports imported/skipped rows, and can map runtime events by address or RVA; live debugger or sandbox streaming is intentionally deferred.
+
+Release verification for the extension is repeatable:
+
+```powershell
+./gradlew.bat :GhidraMcp:test :GhidraMcp:testMcpServer :GhidraMcp:build :GhidraMcp:zipExtensions :GhidraMcp:verifyMcpExtensionArtifact
+```
 
 ## Feature 4: Default-On Pseudocode Quality
 
